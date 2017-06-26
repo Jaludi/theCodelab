@@ -19,62 +19,86 @@ import android.annotation.SuppressLint;
 import android.net.Uri;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Log;
+import android.view.Surface;
 import android.view.View;
 
 import com.google.android.exoplayer2.DefaultLoadControl;
 import com.google.android.exoplayer2.DefaultRenderersFactory;
+import com.google.android.exoplayer2.ExoPlaybackException;
+import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.ExoPlayerFactory;
+import com.google.android.exoplayer2.Format;
+import com.google.android.exoplayer2.PlaybackParameters;
 import com.google.android.exoplayer2.SimpleExoPlayer;
+import com.google.android.exoplayer2.Timeline;
+import com.google.android.exoplayer2.audio.AudioRendererEventListener;
+import com.google.android.exoplayer2.decoder.DecoderCounters;
 import com.google.android.exoplayer2.extractor.DefaultExtractorsFactory;
 import com.google.android.exoplayer2.source.ConcatenatingMediaSource;
 import com.google.android.exoplayer2.source.ExtractorMediaSource;
 import com.google.android.exoplayer2.source.MediaSource;
+import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.dash.DashChunkSource;
 import com.google.android.exoplayer2.source.dash.DashMediaSource;
 import com.google.android.exoplayer2.source.dash.DefaultDashChunkSource;
 import com.google.android.exoplayer2.trackselection.AdaptiveTrackSelection;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trackselection.TrackSelection;
+import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.ui.SimpleExoPlayerView;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DefaultBandwidthMeter;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
 import com.google.android.exoplayer2.util.Util;
+import com.google.android.exoplayer2.video.VideoRendererEventListener;
 
 
 /**
  * A fullscreen activity to play audio or video streams.
  */
 public class PlayerActivity extends AppCompatActivity {
+  private ComponentListener componentListener;
+  private static final String TAG = PlayerActivity.class.getSimpleName();
   SimpleExoPlayerView playerView;
   SimpleExoPlayer player;
   boolean playWhenReady;
   int currentWindow;
+
   long playbackPosition;
   private static final DefaultBandwidthMeter BANDWIDTH_METER =
           new DefaultBandwidthMeter();
+
+  private TrackSelection.Factory adaptiveVideoTrackSelectionFactory;
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     setContentView(R.layout.activity_player);
+
+    componentListener = new ComponentListener();
+
     playerView = (SimpleExoPlayerView) findViewById(R.id.video_view);
   }
 
   private void initializePlayer() {
+
     if (player == null) {
       // a factory to create an AdaptiveVideoTrackSelection
-      TrackSelection.Factory adaptiveTrackSelectionFactory =
-              new AdaptiveTrackSelection.Factory(BANDWIDTH_METER);
+//      TrackSelection.Factory adaptiveTrackSelectionFactory =
+//              new AdaptiveTrackSelection.Factory(BANDWIDTH_METER);
 
-      player = ExoPlayerFactory.newSimpleInstance(
-              new DefaultRenderersFactory(this),
-              new DefaultTrackSelector(adaptiveTrackSelectionFactory),
+
+
+
+      Log.d(TAG, "initializePlayer: 12321");
+      player = ExoPlayerFactory.newSimpleInstance(this,
+              new DefaultTrackSelector(adaptiveVideoTrackSelectionFactory),
               new DefaultLoadControl());
-      player = ExoPlayerFactory.newSimpleInstance(
-              new DefaultRenderersFactory(this),
-              new DefaultTrackSelector(), new DefaultLoadControl());
 
+      player.addListener(componentListener);
+      player.setVideoDebugListener(componentListener);
+      player.setAudioDebugListener(componentListener);
       playerView.setPlayer(player);
 
 
@@ -83,6 +107,7 @@ public class PlayerActivity extends AppCompatActivity {
 
       player.seekTo(currentWindow, playbackPosition);
       Uri uri = Uri.parse(getString(R.string.media_url_dash));
+
       MediaSource mediaSource = buildMediaSource(uri);
       player.prepare(mediaSource, true, false);
     }
@@ -148,9 +173,137 @@ public class PlayerActivity extends AppCompatActivity {
       playbackPosition = player.getCurrentPosition();
       currentWindow = player.getCurrentWindowIndex();
       playWhenReady = player.getPlayWhenReady();
+      player.removeListener(componentListener);
+      player.setVideoListener(null);
+      player.setVideoDebugListener(null);
+      player.setAudioDebugListener(null);
       player.release();
       player = null;
+
+    }
+  }
+
+
+  private class ComponentListener implements ExoPlayer.EventListener, VideoRendererEventListener, AudioRendererEventListener {
+    @Override
+    public void onTimelineChanged(Timeline timeline, Object manifest) {
+
+    }
+
+    @Override
+    public void onTracksChanged(TrackGroupArray trackGroups, TrackSelectionArray trackSelections) {
+
+    }
+
+    @Override
+    public void onLoadingChanged(boolean isLoading) {
+
+    }
+
+    @Override
+    public void onPlayerStateChanged(boolean playWhenReady,
+                                     int playbackState) {
+      String stateString;
+      switch (playbackState) {
+        case ExoPlayer.STATE_IDLE:
+          stateString = "ExoPlayer.STATE_IDLE      -";
+          break;
+        case ExoPlayer.STATE_BUFFERING:
+          stateString = "ExoPlayer.STATE_BUFFERING -";
+          break;
+        case ExoPlayer.STATE_READY:
+          stateString = "ExoPlayer.STATE_READY     -";
+          break;
+        case ExoPlayer.STATE_ENDED:
+          stateString = "ExoPlayer.STATE_ENDED     -";
+          break;
+        default:
+          stateString = "UNKNOWN_STATE             -";
+          break;
+      }
+      Log.d(TAG, "changed state to " + stateString
+              + " playWhenReady: " + playWhenReady);
+    }
+
+
+    @Override
+    public void onPlayerError(ExoPlaybackException error) {
+
+    }
+
+    @Override
+    public void onPositionDiscontinuity() {
+
+    }
+
+    @Override
+    public void onPlaybackParametersChanged(PlaybackParameters playbackParameters) {
+
+    }
+
+    @Override
+    public void onVideoEnabled(DecoderCounters counters) {
+
+    }
+
+    @Override
+    public void onVideoDecoderInitialized(String decoderName, long initializedTimestampMs, long initializationDurationMs) {
+
+    }
+
+    @Override
+    public void onVideoInputFormatChanged(Format format) {
+
+    }
+
+    @Override
+    public void onDroppedFrames(int count, long elapsedMs) {
+
+    }
+
+    @Override
+    public void onVideoSizeChanged(int width, int height, int unappliedRotationDegrees, float pixelWidthHeightRatio) {
+
+    }
+
+    @Override
+    public void onRenderedFirstFrame(Surface surface) {
+
+    }
+
+    @Override
+    public void onVideoDisabled(DecoderCounters counters) {
+
+    }
+
+    @Override
+    public void onAudioEnabled(DecoderCounters counters) {
+
+    }
+
+    @Override
+    public void onAudioSessionId(int audioSessionId) {
+
+    }
+
+    @Override
+    public void onAudioDecoderInitialized(String decoderName, long initializedTimestampMs, long initializationDurationMs) {
+
+    }
+
+    @Override
+    public void onAudioInputFormatChanged(Format format) {
+
+    }
+
+    @Override
+    public void onAudioTrackUnderrun(int bufferSize, long bufferSizeMs, long elapsedSinceLastFeedMs) {
+
+    }
+
+    @Override
+    public void onAudioDisabled(DecoderCounters counters) {
+
     }
   }
 }
-
